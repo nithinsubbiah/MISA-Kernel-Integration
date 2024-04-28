@@ -105,9 +105,9 @@ igemm_fwd_gtc_karg_t initializeKernelArgs() {
   karg.ks = 1919907636;
 
   std::vector<float16> h_in, h_out, h_wei;
-  h_in = generateFloatVector(karg.n * karg.hi * karg.wi * karg.k);
+  h_in = generateFloatVector(karg.n * karg.hi * karg.wi * karg.c);
   h_wei = generateFloatVector(karg.x * karg.y * karg.k * karg.c);
-  h_out = generateFloatVector(karg.n * karg.ho * karg.wo * karg.c);
+  h_out = generateFloatVector(karg.n * karg.ho * karg.wo * karg.k);
 
   float16 *d_in, *d_wei, *d_out;
   const size_t bytesInput = h_in.size() * sizeof(float16);
