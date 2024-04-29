@@ -155,7 +155,7 @@ void runKernel(hipFunction_t kernelFunc, void *args, size_t arg_size,
 }
 
 int main() {
-  // MISA convolution kernel object code compiled for gfx940 
+  // MISA convolution kernel object code compiled for gfx940
   const char *hsaco_file = "igemm_fwd_gtc_gfx940_nhwc_fp16.hsaco";
   const char *kernel_name =
       "igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt256x128x32_wt32x32x8_ws2x1_wr2x2_"

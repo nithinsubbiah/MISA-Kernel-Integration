@@ -40,7 +40,7 @@ module attributes {transform.with_named_sequence} {
     %shift_pack_1 = arith.constant 828006248 : i32
     %ks = arith.constant 1919907636 : i32
 
-    %4 = hal.dispatch.extern "igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt256x128x32_wt32x32x8_ws2x1_wr2x2_"(%hi, %wi, %n,
+    %5 = hal.dispatch.extern "igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt256x128x32_wt32x32x8_ws2x1_wr2x2_ta1x8x4x1_1x4x1x64_tb1x8x2x1_1x4x1x64"(%hi, %wi, %n,
         %k, %c, %ho, %wo, %stride_h, %stride_w, %dilation_h, %dilation_w, %pad_h, %pad_w, %y, %x, %group, 
         %magic_0, %magic_1, %magic_2, %magic_3, %magic_4, %magic_5, %shift_pack_0, %shift_pack_1, %ks,
         %arg0, %arg1) : (i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32, i32,
@@ -70,11 +70,13 @@ module attributes {transform.with_named_sequence} {
         ]
       })
       attributes {subgroupSize = 64, workgroup_size = [256 : index, 1 : index, 1 : index]}
-    util.return %4 : tensor<2x32x32x1280xf16>
+    // %4 = tensor.empty() : tensor<2x32x32x1280xf16>
+    util.return %5 : tensor<2x32x32x1280xf16>
   }
 
   transform.named_sequence @match_conv(
       %root: !transform.any_op {transform.readonly}) -> !transform.any_op {
+    // transform.print %root: !transform.any_op
     transform.match.operation_name %root ["linalg.conv_2d_nhwc_hwcf"] : !transform.any_op
     %matched = transform.match.structured failures(propagate) %root : (!transform.any_op) -> (!transform.any_op) {
     ^bb1(%conv_nhwc: !transform.any_op):
@@ -89,7 +91,6 @@ module attributes {transform.with_named_sequence} {
   
       transform.match.structured.yield %conv_nhwc : !transform.any_op 
     }
-
     // Verify the operand shapes of the conv op.
     // Define input and filter tensor shapes for verification.
     %c_in = transform.param.constant 2 : i64 -> !transform.param<i64>
@@ -143,25 +144,19 @@ module attributes {transform.with_named_sequence} {
   }
   
   transform.named_sequence @cast_and_call_conv(%conv: !transform.any_op {transform.readonly}) {
-  //   %module = transform.util.get_nearest_symbol_table %conv : (!transform.any_op) -> !transform.any_op
-  //   %func = transform.util.import_symbol @conv_entry_point into %module if undefined : (!transform.any_op) -> !transform.any_op
-  //   %ins = transform.get_operand %conv[0] : (!transform.any_op) -> !transform.any_value
-  //   %outs = transform.get_result %argmax[1] : (!transform.any_op) -> !transform.any_value
-  //   transform.util.cast_and_call %func(%ins) -> %outs before %argmax {
-  //         // This specifies how to resolve type mismatches between the arguments
-  //         // of the function and the inputs to the argmax. In this example, the
-  //         // only casts this will generate are same-rank tensor casts that drop
-  //         // static information.
-  //         transform.type_conversion.tensor.cast_shape_dynamic_dims
-  //     } : (!transform.any_op, !transform.any_value, !transform.any_value, !transform.any_op) -> !transform.any_op
+    // transform.print {name = "hi"}
+    %module = transform.util.get_nearest_symbol_table %conv : (!transform.any_op) -> !transform.any_op
+    %func = transform.util.import_symbol @conv_entry_point into %module if undefined : (!transform.any_op) -> !transform.any_op
+    %ins = transform.get_operand %conv[0,1] : (!transform.any_op) -> !transform.any_value
+    %outs = transform.get_result %conv[0] : (!transform.any_op) -> !transform.any_value
+    transform.util.cast_and_call %func(%ins) -> %outs before %conv {
+      } : (!transform.any_op, !transform.any_value, !transform.any_value, !transform.any_op) -> !transform.any_op
+    
     transform.yield
   }
 
   transform.named_sequence @__transform_main(%module: !transform.any_op) {
-
-    // Gather the set of functions within the module.
-    %funcs = transform.structured.match ops{["func.func"]} in %module : (!transform.any_op) -> !transform.any_op   
-    
+    %funcs = transform.structured.match ops{["util.func"]} in %module : (!transform.any_op) -> !transform.any_op   
     // For each function in the module, run the matcher on all contained
     // operations.
     transform.foreach %funcs : !transform.any_op {
