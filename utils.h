@@ -16,13 +16,11 @@ using float16 = half_float::half;
   }
 #endif
 
-std::vector<float16> generateFloatVector(int vecSize) {
+std::vector<float16> generateFloatVector(int vecSize, float value = 0) {
   std::vector<float16> vector_container;
-  float16 r;
+  float16 r = static_cast<float16>(value);
   for (int i = 0; i < vecSize; i++) {
-    r = static_cast<float16>(rand()) / static_cast<float16>(RAND_MAX);
     vector_container.push_back(r);
   }
-
   return vector_container;
 }

@@ -75,8 +75,9 @@ hipFunction_t loadKernel(const char *filePath, const char *kernelName) {
   return kernelFunc;
 }
 
-igemm_fwd_gtc_karg_t initializeKernelArgs() {
-
+void runKernel(hipFunction_t kernelFunc, size_t arg_size,
+               std::vector<size_t> grid_size, std::vector<size_t> block_size) {
+  
   igemm_fwd_gtc_karg_t karg;
   karg.hi = 34;
   karg.wi = 34;
@@ -98,16 +99,16 @@ igemm_fwd_gtc_karg_t initializeKernelArgs() {
   karg.magic_1 = 1;
   karg.magic_2 = 1;
   karg.magic_3 = 2576980378;
-  karg.magic_4 = 0;
-  karg.magic_5 = 0;
-  karg.shift_pack_0 = 117770756;
-  karg.shift_pack_1 = 828006248;
-  karg.ks = 1919907636;
+  karg.magic_4 = 4;
+  karg.magic_5 = 23760880;
+  karg.shift_pack_0 = 134547972;
+  karg.shift_pack_1 = 16;
+  karg.ks = 0;
 
-  std::vector<float16> h_in, h_out, h_wei;
-  h_in = generateFloatVector(karg.n * karg.hi * karg.wi * karg.c);
-  h_wei = generateFloatVector(karg.x * karg.y * karg.k * karg.c);
-  h_out = generateFloatVector(karg.n * karg.ho * karg.wo * karg.k);
+  std::vector<float16> h_in, h_wei;
+  h_in = generateFloatVector(karg.n * karg.hi * karg.wi * karg.c, 0.0);
+  h_wei = generateFloatVector(karg.x * karg.y * karg.k * karg.c, 0.0);
+  std::vector<float16> h_out(karg.n * karg.ho * karg.wo * karg.k);
 
   float16 *d_in, *d_wei, *d_out;
   const size_t bytesInput = h_in.size() * sizeof(float16);
@@ -122,20 +123,12 @@ igemm_fwd_gtc_karg_t initializeKernelArgs() {
       hipMemcpy(d_in, h_in.data(), bytesInput, hipMemcpyHostToDevice));
   CHECK_HIP_ERROR(
       hipMemcpy(d_wei, h_wei.data(), bytesWeight, hipMemcpyHostToDevice));
-  CHECK_HIP_ERROR(
-      hipMemcpy(d_out, h_out.data(), bytesOutput, hipMemcpyHostToDevice));
 
   karg.p_in = (void *)d_in;
   karg.p_wei = (void *)d_wei;
   karg.p_out = (void *)d_out;
 
-  return karg;
-}
-
-void runKernel(hipFunction_t kernelFunc, void *args, size_t arg_size,
-               std::vector<size_t> grid_size, std::vector<size_t> block_size) {
-
-  void *config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, args,
+  void *config[] = {HIP_LAUNCH_PARAM_BUFFER_POINTER, (void *)&karg,
                     HIP_LAUNCH_PARAM_BUFFER_SIZE, &arg_size,
                     HIP_LAUNCH_PARAM_END};
   hipEvent_t start;
@@ -145,26 +138,32 @@ void runKernel(hipFunction_t kernelFunc, void *args, size_t arg_size,
   float ms = .0;
 
   CHECK_HIP_ERROR(hipExtModuleLaunchKernel(
-      kernelFunc, grid_size[0], grid_size[1], grid_size[2], block_size[0],
+      kernelFunc, grid_size[0]*block_size[0], grid_size[1], grid_size[2], block_size[0],
       block_size[1], block_size[2], 0, 0, NULL, (void **)&config, start, stop));
 
   CHECK_HIP_ERROR(hipEventSynchronize(stop));
   CHECK_HIP_ERROR(hipEventElapsedTime(&ms, start, stop));
   CHECK_HIP_ERROR(hipEventDestroy(start));
   CHECK_HIP_ERROR(hipEventDestroy(stop));
+
+  hipMemcpy(h_out.data(), d_out, bytesOutput, hipMemcpyDeviceToHost);
+  
+  for (int i = 0; i < karg.n * karg.ho * karg.wo * karg.k; i++) {
+    std::cout<<h_out[i] << ", ";
+  }
+  std::cout<<"\n";
+
 }
 
 int main() {
   // MISA convolution kernel object code compiled for gfx940
   const char *hsaco_file = "igemm_fwd_gtc_gfx940_nhwc_fp16.hsaco";
-  const char *kernel_name =
-      "igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt256x128x32_wt32x32x8_ws2x1_wr2x2_"
-      "ta1x8x4x1_1x4x1x64_tb1x8x2x1_1x4x1x64";
+  const char *kernel_name = "igemm_fwd_gtcx3_nhwc_fp16_bx0_ex1_bt128x128x32_wt32x32x8_ws1x1_wr2x2_ta1x8x2x1_1x4x1x64_tb1x8x2x1_1x4x1x64_gkgs";
   hipFunction_t kernel = loadKernel(hsaco_file, kernel_name);
   if (!kernel)
     exit(EXIT_FAILURE);
-  igemm_fwd_gtc_karg_t karg = initializeKernelArgs();
-  size_t arg_size = 128;
-  runKernel(kernel, (void *)&karg, arg_size, {20480, 1, 1}, {256, 1, 1});
+
+  size_t arg_size = 128, splits = 1;
+  runKernel(kernel, arg_size, {160, splits, 1}, {256, 1, 1});
   return 0;
 }

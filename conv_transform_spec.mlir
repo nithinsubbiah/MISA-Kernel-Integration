@@ -28,8 +28,6 @@ module attributes {transform.with_named_sequence} {
     %y = arith.constant 3 : i32
     %x = arith.constant 3 : i32
     %group = arith.constant 1 : i32
-    // TODO: figure out how to use ui32
-    // %magic_0 = arith.constant 2576980378 : i32
     %magic_0 = arith.constant 2576980378 : i32
     %magic_1 = arith.constant 1 : i32
     %magic_2 = arith.constant 1 : i32
@@ -70,7 +68,6 @@ module attributes {transform.with_named_sequence} {
         ]
       })
       attributes {subgroupSize = 64, workgroup_size = [256 : index, 1 : index, 1 : index]}
-    // %4 = tensor.empty() : tensor<2x32x32x1280xf16>
     util.return %5 : tensor<2x32x32x1280xf16>
   }
 
@@ -151,7 +148,7 @@ module attributes {transform.with_named_sequence} {
     %outs = transform.get_result %conv[0] : (!transform.any_op) -> !transform.any_value
     transform.util.cast_and_call %func(%ins) -> %outs before %conv {
       } : (!transform.any_op, !transform.any_value, !transform.any_value, !transform.any_op) -> !transform.any_op
-    
+    transform.print {name = "hi"}
     transform.yield
   }
 
